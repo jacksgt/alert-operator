@@ -20,28 +20,34 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // AlertSpec defines the desired state of Alert
 type AlertSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Foo is an example field of Alert. Edit alert_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
 }
 
 // AlertStatus defines the observed state of Alert
 type AlertStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// State describes if the alert is currently active or not.
+	State string `json:"state,omitempty"`
+	// Annotations contains key-value data associated to the alert.
+	Annotations map[string]string `json:"annotations,omitempty"`
+	// Labels contains key-value data associated to the alert.
+	Labels map[string]string `json:"labels,omitempty"`
+	// Describes since which timestamp the alert is active.
+	Since string `json:"since,omitempty"` // TODO: use a proper timestamp
+	// The current value of alert expression.
+	Value string	`json:"value,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 
 // Alert is the Schema for the alerts API
+// +kubebuilder:printcolumn:name="State",type=string,JSONPath=`.status.state`
+// +kubebuilder:printcolumn:name="Since",type=string,JSONPath=`.status.since`
+// https://book.kubebuilder.io/reference/generating-crd.html#additional-printer-columns
 type Alert struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

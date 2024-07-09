@@ -14,10 +14,19 @@ spec:
     singular: alert
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .status.state
+      name: State
+      type: string
+    - jsonPath: .status.since
+      name: Since
+      type: string
+    name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: Alert is the Schema for the alerts API
+        description: |-
+          Alert is the Schema for the alerts API
+          https://book.kubebuilder.io/reference/generating-crd.html#additional-printer-columns
         properties:
           apiVersion:
             description: |-
@@ -38,14 +47,30 @@ spec:
             type: object
           spec:
             description: AlertSpec defines the desired state of Alert
-            properties:
-              foo:
-                description: Foo is an example field of Alert. Edit alert_types.go
-                  to remove/update
-                type: string
             type: object
           status:
             description: AlertStatus defines the observed state of Alert
+            properties:
+              annotations:
+                additionalProperties:
+                  type: string
+                description: Annotations contains key-value data associated to the
+                  alert.
+                type: object
+              labels:
+                additionalProperties:
+                  type: string
+                description: Labels contains key-value data associated to the alert.
+                type: object
+              since:
+                description: Describes since which timestamp the alert is active.
+                type: string
+              state:
+                description: State describes if the alert is currently active or not.
+                type: string
+              value:
+                description: The current value of alert expression.
+                type: string
             type: object
         type: object
     served: true
