@@ -1,0 +1,23 @@
+# permissions for end users to view silences.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: alert-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: silence-viewer-role
+rules:
+- apiGroups:
+  - alertmanager.prometheus.io.alertmanager.prometheus.io
+  resources:
+  - silences
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - alertmanager.prometheus.io.alertmanager.prometheus.io
+  resources:
+  - silences/status
+  verbs:
+  - get

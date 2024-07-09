@@ -1,0 +1,5 @@
+## Append samples of your project ##
+resources:
+- alertmanager.prometheus.io_v1alpha1_alert.yaml
+- alertmanager.prometheus.io_v1alpha1_silence.yaml
+# +kubebuilder:scaffold:manifestskustomizesamples
