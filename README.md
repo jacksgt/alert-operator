@@ -1,10 +1,46 @@
 # alert-operator
-// TODO(user): Add simple overview of use/purpose
 
-## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+The Alert-Operator is the missing component of the [kube-prometheus stack](https://github.com/prometheus-operator/kube-prometheus/) for observability on Kubernetes:
+it allows you to view active **Alerts** from the comfort of your `kubectl` CLI and lets you manage associated **Silences** declaratively, for example with GitOps.
 
-## Getting Started
+```sh
+$ kubectl get alerts
+NAME                 STATE   VALUE  SINCE  LABELS
+ContainerOOM-asxi    firing  1      3h17m  pod=prometheus-k8s-db-prometheus-k8s-0,severity=warning
+KubeJobFailed-kp2md  firing  3      42m    alertname=KubeJobFailed,job_name=image-pruner-28679172,namespace=openshift-image-registry
+
+$ kubectl get alert ContainerOOM-asxi -o yaml
+apiVersion: alertmanager.prometheus.io/v1alpha1
+kind: Alert
+metadata:
+  name: ContainerOOM-asxi
+spec: {}
+status:
+  since: 2018-07-04 20:27:12.60602144 +0200 CEST
+  state: firing
+  value: "1e+00"
+  labels:
+    alertname: ContainerOOM
+    endpoint: https-metrics
+    instance: 1.2.3.4:10250
+    job: kubelet
+    metrics_path: /metrics
+    namespace: openshift-monitoring
+    node: infra-avz-a-5phgg
+    pod: prometheus-k8s-db-prometheus-k8s-0
+    service: kubelet
+    severity: warning
+  annotations:
+    summary: The container 'prometheus' of pod 'prometheus-k8s-db-prometheus-k8s-0' has been restarted multiple times due to running out of memory.
+```
+
+```sh
+$ kubectl get silences
+NAME                   STATE    CREATOR  COMMENT
+out-of-memory-issues   active   foobar   Currently scaling up the cluster and waiting for new nodes
+```
+
+## Development
 
 ### Prerequisites
 - go version v1.22.0+
@@ -27,12 +63,18 @@ Make sure you have the proper permission to the registry if the above commands d
 
 ```sh
 make install
+
+# to uninstall (delete CRDs from the cluster):
+make uninstall
 ```
 
 **Deploy the Manager to the cluster with the image specified by `IMG`:**
 
 ```sh
 make deploy IMG=<some-registry>/alert-operator:tag
+
+# to uninstall (remove controller from the cluster):
+make undeploy
 ```
 
 > **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
@@ -43,28 +85,16 @@ You can apply the samples (examples) from the config/sample:
 
 ```sh
 kubectl apply -k config/samples/
-```
 
->**NOTE**: Ensure that the samples has default values to test it out.
-
-### To Uninstall
-**Delete the instances (CRs) from the cluster:**
-
-```sh
+# to uninstall:
 kubectl delete -k config/samples/
 ```
 
-**Delete the APIs(CRDs) from the cluster:**
+> **NOTE**: Ensure that the samples has default values to test it out.
 
-```sh
-make uninstall
-```
+> **NOTE:** Run `make help` for more information on all potential `make` targets
 
-**UnDeploy the controller from the cluster:**
-
-```sh
-make undeploy
-```
+More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
 
 ## Project Distribution
 
@@ -90,11 +120,9 @@ kubectl apply -f https://raw.githubusercontent.com/<org>/alert-operator/<tag or 
 ```
 
 ## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
 
-**NOTE:** Run `make help` for more information on all potential `make` targets
-
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
+Contributions are welcome! Feel free to submit feedback and ideas by opening [GitHub issues](https://github.com/jacksgt/alert-operator/issues).
+It is recommended to discuss your feature in an issue before opening a pull request.
 
 ## License
 
