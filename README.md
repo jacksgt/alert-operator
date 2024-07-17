@@ -96,6 +96,28 @@ kubectl delete -k config/samples/
 
 More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
 
+### Generate Alertmanger API client
+
+we use [OpenAPI Generator](https://openapi-generator.tech/docs/usage/) that generates the Go code based on the OpenAPI spec (*"Swagger"*).
+This generated code might need to be updated from time to time to get access to new endpoints in the API.
+
+```sh
+# fetch API schema (commit it to Git so we can track changes)
+curl -sSL https://raw.githubusercontent.com/prometheus/alertmanager/main/api/v2/openapi.yaml -o alertmanager-openapi.yaml
+
+# generate Go client and models (see details in the config file)
+rm -rf pkg/alertmanagerapi/
+podman run --rm -v "${PWD}:/local" docker.io/openapitools/openapi-generator-cli:v7.6.0 generate \
+    --input-spec /local/alertmanager-openapi.yaml \
+    --generator-name go \
+    --output /local/pkg/alertmanagerapi \
+    --config /local/openapi-generator-config.yaml
+# fetch dependencies
+go get -u ./pkg/alertmanagerapi/...
+go mod tidy
+go mod vendor
+```
+
 ## Project Distribution
 
 Following are the steps to build the installer and distribute this project to users.

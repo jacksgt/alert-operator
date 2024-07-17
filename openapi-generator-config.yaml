@@ -1,0 +1,17 @@
+# https://github.com/OpenAPITools/openapi-generator/blob/master/docs/customization.md
+globalProperties:
+  apis: "" # generate all APIs
+  models: "" # generate all models
+  supportingFiles: "client.go,response.go,utils.go,configuration.go"
+  # we don't need this extra stuff
+  modelDocs: "false"
+  modelTests: "false"
+  apiTests: "false"
+  apiDocs: "false"
+
+# https://github.com/OpenAPITools/openapi-generator/blob/master/docs/generators/go.md
+additionalProperties:
+  packageName: alertmanagerapi
+  isGoSubmodule: true
+  withGoMod: false
+  enumClassPrefix: true
