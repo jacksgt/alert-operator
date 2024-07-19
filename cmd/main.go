@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"time"
 
@@ -27,6 +28,7 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -39,6 +41,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	alertmanagerprometheusiov1alpha1 "github.com/jacksgt/alert-operator/api/v1alpha1"
+	"github.com/jacksgt/alert-operator/internal/alertmanagerapi"
 	"github.com/jacksgt/alert-operator/internal/controller"
 	// +kubebuilder:scaffold:imports
 )
@@ -63,7 +66,8 @@ func main() {
 	var secureMetrics bool
 	var enableHTTP2 bool
 	var controllerNamespace string
-	var prometheusBaseURL string
+	var alertmanagerBaseUrl string
+	var alertmanagerBearerAuthorizationToken string
 	var syncInterval string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
@@ -76,7 +80,8 @@ func main() {
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
 	flag.StringVar(&controllerNamespace, "namespace", "", "The namespace in which the controller runs and creates objects.")
-	flag.StringVar(&prometheusBaseURL, "prometheus-base-url", "http://localhost:9090", "The address at which Prometheus listens for requests.")
+	flag.StringVar(&alertmanagerBaseUrl, "alertmanager-base-url", "http://localhost:9091", "The address at which Alertmanager listens for requests.")
+	flag.StringVar(&alertmanagerBearerAuthorizationToken, "alertmanager-bearer-authorization-token", "", "Bearer Authorization for authenticating with Alertmanager (optional)")
 	flag.StringVar(&syncInterval, "sync-interval", "15s", "The interval at which alerts should be loaded from the Prometheus API (as a Go duration).")
 
 	opts := zap.Options{
@@ -96,6 +101,21 @@ func main() {
 		os.Exit(1)
 		// }
 	}
+
+	// syncAlertsChannel, err := setupChannelWithInterval(syncInterval)
+	// if err != nil {
+	// 	setupLog.Error(err, "Failed to setup sync interval")
+	// 	os.Exit(1)
+	// }
+
+	syncSilencesChannel, err := setupChannelWithInterval(syncInterval)
+	if err != nil {
+		setupLog.Error(err, "Failed to setup sync interval")
+		os.Exit(1)
+	}
+
+	// TOOD: make tlsSkipVerify configurable
+	alertmanagerClient := newAlertmanagerClient(alertmanagerBaseUrl, alertmanagerBearerAuthorizationToken, true)
 
 	// if the enable-http2 flag is false (the default), http/2 should be disabled
 	// due to its vulnerabilities. More specifically, disabling http/2 will
@@ -160,29 +180,27 @@ func main() {
 		os.Exit(1)
 	}
 
-	syncAlertsChannel, err := setupChannelWithInterval(syncInterval)
-	if err != nil {
-		setupLog.Error(err, "Failed to setup sync interval")
-		os.Exit(1)		
-	}
-
-	if err = (&controller.AlertReconciler{
-		Client:              mgr.GetClient(),
-		Scheme:              mgr.GetScheme(),
-		ControllerNamespace: controllerNamespace,
-		PrometheusBaseURL:   prometheusBaseURL,
-		SyncChannel: syncAlertsChannel,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Alert")
-		os.Exit(1)
-	}
-	// if err = (&controller.SilenceReconciler{
-	// 	Client: mgr.GetClient(),
-	// 	Scheme: mgr.GetScheme(),
+	// if err = (&controller.AlertReconciler{
+	// 	Client:              mgr.GetClient(),
+	// 	Scheme:              mgr.GetScheme(),
+	// 	ControllerNamespace: controllerNamespace,
+	// 	PrometheusBaseURL:   prometheusBaseURL,
+	// 	SyncChannel: syncAlertsChannel,
 	// }).SetupWithManager(mgr); err != nil {
-	// 	setupLog.Error(err, "unable to create controller", "controller", "Silence")
+	// 	setupLog.Error(err, "unable to create controller", "controller", "Alert")
 	// 	os.Exit(1)
 	// }
+
+	if err = (&controller.SilenceReconciler{
+		Client:             mgr.GetClient(),
+		Scheme:             mgr.GetScheme(),
+		Namespace:          controllerNamespace,
+		SyncChannel:        syncSilencesChannel,
+		AlertmanagerClient: alertmanagerClient,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Silence")
+		os.Exit(1)
+	}
 	// +kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
@@ -222,8 +240,9 @@ func setupChannelWithInterval(interval string) (chan event.GenericEvent, error) 
 			// after the interval, send an event on the channel
 			case <-ticker.C:
 				event := event.GenericEvent{
-					Object: &alertmanagerprometheusiov1alpha1.Alert{},
+					Object: &corev1.Event{},
 				}
+				fmt.Println("Sending dummy event")
 				c <- event
 
 			}
@@ -232,4 +251,28 @@ func setupChannelWithInterval(interval string) (chan event.GenericEvent, error) 
 
 	// return the channel to the caller
 	return c, nil
+}
+
+func newAlertmanagerClient(baseUrl string, bearerAuthorizationToken string, tlsSkipVerify bool) *alertmanagerapi.APIClient {
+	// if necessary, disable tls certificate verification
+	tr := &http.Transport{		
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: tlsSkipVerify,
+		},
+	}
+	httpClient := &http.Client{Transport: tr}
+	
+	cfg := alertmanagerapi.NewConfiguration()
+	// TODO: leave URL alone, set cfg.{Host,Scheme} instead
+	cfg.Servers[0].URL = baseUrl + "/api/v2"
+	cfg.UserAgent = "alert-operator/" + cfg.UserAgent
+
+	// if necessary, add authentication header(s)
+	if bearerAuthorizationToken != "" {
+		cfg.AddDefaultHeader("Authorization", "Bearer "+bearerAuthorizationToken)
+	}
+	cfg.HTTPClient = httpClient
+	
+	// TODO: test the client before returning it
+	return alertmanagerapi.NewAPIClient(cfg)
 }

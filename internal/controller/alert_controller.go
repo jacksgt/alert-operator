@@ -109,6 +109,8 @@ func (r *AlertReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		}
 	}
 
+	// TODO: garbage collect old alerts
+
 	return ctrl.Result{}, nil
 }
 
@@ -120,8 +122,13 @@ func (r *AlertReconciler) updateAlertStatus(a *alertmanagerprometheusiov1alpha1.
 }
 
 func generateAlertName(a Alert) string {
-	alertName := a.Labels["alertname"] // TODO: what to do if this field is not present
-	// TODO: include labels / annotations as well?
+	alertName := a.Labels["alertname"]
+	if alertName == "" {
+		// According to https://github.com/prometheus/prometheus/blob/d002fad00c20eaad029d6d122bfc513b091f78ad/rules/alerting.go#L394
+		// the "alertname" label should always be set		
+		panic("alertname label is not set!")
+	}
+	// TODO: include labels / annotations in calculation as well?
 	data := a.ActiveAt.String()
 	hash := sha256.Sum256([]byte(data))
 	return fmt.Sprintf("%s-%x", alertName, hash[0:8])
